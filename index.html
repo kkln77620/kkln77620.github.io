@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .question {
+            margin: 25px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .options {
+            margin-top: 10px;
+        }
+        .option {
+            margin: 8px 0;
+        }
+        .submit-area {
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 18px;
+            display: none;
+        }
+        .adult {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .teen {
+            background-color: #fcf8e3;
+            color: #8a6d3b;
+        }
+        .restriction {
+            color: #d9534f;
+            padding: 10px 15px;
+            border: 1px solid #ebccd1;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .last-score {
+            color: #31708f;
+            padding: 10px 15px;
+            border: 1px solid #bce8f1;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>测试</h1>
+    <p>请根据你的日常习惯选择最符合的选项，完成后点击提交查看结果</p>
+
+    <form id="quizForm"></form>
+    
+    <div class="submit-area">
+        <button type="button" id="submitBtn">提交答案</button>
+        <div id="restrictionNotice" class="restriction" style="display: none;"></div>
+        <div id="lastScoreNotice" class="last-score" style="display: none;"></div>
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        // 检查是否在24小时内已答题并返回上次分数
+        const checkQuizRestriction = () => {
+            const lastQuizTime = localStorage.getItem('lastQuizTimestamp');
+            const lastScore = localStorage.getItem('lastQuizScore');
+            const now = new Date().getTime();
+            const twentyFourHours = 24 * 60 * 60 * 1000; // 24小时的毫秒数
+            
+            // 显示上次分数（无论是否在限制期内）
+            if (lastScore) {
+                document.getElementById('lastScoreNotice').style.display = 'block';
+                document.getElementById('lastScoreNotice').textContent = 
+                    `上次得分：${lastScore}分`;
+            }
+            
+            if (lastQuizTime && (now - parseInt(lastQuizTime) < twentyFourHours)) {
+                // 计算剩余时间
+                const remainingTime = twentyFourHours - (now - parseInt(lastQuizTime));
+                const hours = Math.floor(remainingTime / (60 * 60 * 1000));
+                const minutes = Math.floor((remainingTime % (60 * 60 * 1000)) / (60 * 1000));
+                
+                document.getElementById('restrictionNotice').style.display = 'block';
+                document.getElementById('restrictionNotice').textContent = 
+                    `24小时内已答题，请${hours}小时${minutes}分钟后再试`;
+                
+                // 禁用表单和按钮
+                document.querySelectorAll('input[type="radio"]').forEach(input => {
+                    input.disabled = true;
+                });
+                document.getElementById('submitBtn').disabled = true;
+                return true;
+            }
+            return false;
+        };
+
+        // 题目数据
+        const questions = [
+            {
+                question: "1. 你习惯用什么容器装水带出门？",
+                options: [
+                    "A. 卡通图案的保温杯",
+                    "B. 轻便的塑料运动水杯",
+                    "C. 带茶隔的玻璃泡茶杯",
+                    "D. 随手拿的矿泉水瓶"
+                ],
+                correct: "C"
+            },
+            {
+                question: "2. 家里的遥控器找不到了，你第一反应是？",
+                options: [
+                    "A. 喊家人帮忙一起找",
+                    "B. 翻沙发缝和茶几底下",
+                    "C. 用手机APP遥控（如果支持）",
+                    "D. 算了，直接手动调"
+                ],
+                correct: "C"
+            },
+            {
+                question: "3. 吃水果时，你更习惯怎么处理？",
+                options: [
+                    "A. 等着家人洗好切好端过来",
+                    "B. 自己随便冲一下就吃",
+                    "C. 仔细洗干净，有的会削皮切块",
+                    "D. 很少吃水果，无所谓"
+                ],
+                correct: "C"
+            },
+            {
+                question: "4. 出门前穿鞋子，你会？",
+                options: [
+                    "A. 穿家人擦好的运动鞋",
+                    "B. 随便套上，脏了也不介意",
+                    "C. 自己擦一下鞋边的灰尘",
+                    "D. 提前一晚把鞋摆好，方便穿"
+                ],
+                correct: "C"
+            },
+            {
+                question: "5. 看到家里地面有点脏，你会？",
+                options: [
+                    "A. 假装没看见，反正有人打扫",
+                    "B. 喊别人来扫",
+                    "C. 顺手拿起扫帚或吸尘器清理",
+                    "D. 觉得“有点脏很正常”"
+                ],
+                correct: "C"
+            },
+            {
+                question: "6. 手机快没电了，你第一时间会？",
+                options: [
+                    "A. 找家长要充电宝",
+                    "B. 赶紧把后台程序关了",
+                    "C. 拿出随身携带的充电器插上",
+                    "D. 无所谓，没电就不用了"
+                ],
+                correct: "C"
+            },
+            {
+                question: "7. 冰箱里有剩菜，第二天你会？",
+                options: [
+                    "A. 不知道能不能吃，让家人处理",
+                    "B. 直接拿出来冷着吃",
+                    "C. 加热后再吃，剩太久就扔掉",
+                    "D. 从来不吃剩菜"
+                ],
+                correct: "C"
+            },
+            {
+                question: "8. 下雨时发现没带伞，你会？",
+                options: [
+                    "A. 打电话让家人送伞",
+                    "B. 找个地方躲雨，等雨停",
+                    "C. 用手机叫车，或者买把一次性伞",
+                    "D. 淋着雨跑回去"
+                ],
+                correct: "C"
+            },
+            {
+                question: "9. 收到快递后，包装盒子你会？",
+                options: [
+                    "A. 随手扔在一边，等着家人收拾",
+                    "B. 拆开后直接扔掉",
+                    "C. 攒起来卖废品，或者留着当收纳盒",
+                    "D. 拆完就丢，没特别想法"
+                ],
+                correct: "C"
+            },
+            {
+                question: "10. 晚上睡觉前，你会检查什么？",
+                options: [
+                    "A. 书包收拾好了没",
+                    "B. 手机有没有充电",
+                    "C. 门窗关了没，灯有没有关",
+                    "D. 没什么要检查的"
+                ],
+                correct: "C"
+            },
+            {
+                question: "11. 看到插座上插满了插头，你会？",
+                options: [
+                    "A. 觉得乱，但不敢碰",
+                    "B. 随便拔一个下来",
+                    "C. 整理一下，避免插头太挤",
+                    "D. 没注意过这种事"
+                ],
+                correct: "C"
+            },
+            {
+                question: "12. 家里的垃圾袋满了，你会？",
+                options: [
+                    "A. 喊别人来换",
+                    "B. 把垃圾堆在旁边",
+                    "C. 自己换个新袋子，把垃圾丢到楼下",
+                    "D. 等家人发现了再说"
+                ],
+                correct: "C"
+            },
+            {
+                question: "13. 吃泡面时，你习惯怎么弄？",
+                options: [
+                    "A. 让家人帮忙泡好",
+                    "B. 直接用热水冲，泡几分钟就吃",
+                    "C. 加个鸡蛋，用锅煮一下",
+                    "D. 很少吃泡面"
+                ],
+                correct: "C"
+            },
+            {
+                question: "14. 出门前看天气预报，主要关注什么？",
+                options: [
+                    "A. 要不要带伞",
+                    "B. 冷不冷，该穿什么衣服",
+                    "C. 会不会影响通勤",
+                    "D. 基本不看天气预报"
+                ],
+                correct: "C"
+            },
+            {
+                question: "15. 手机铃声是哪种类型？",
+                options: [
+                    "A. 卡通音乐或儿歌",
+                    "B. 流行歌曲或网络热曲",
+                    "C. 系统默认铃声，或者轻柔的纯音乐",
+                    "D. 静音，只用震动"
+                ],
+                correct: "C"
+            },
+            {
+                question: "16. 家里的钟表快了5分钟，你会？",
+                options: [
+                    "A. 告诉家人，让他们调",
+                    "B. 觉得无所谓，反正差不多",
+                    "C. 自己动手调准",
+                    "D. 没发现过这种事"
+                ],
+                correct: "C"
+            },
+            {
+                question: "17. 买东西时遇到找零，你会？",
+                options: [
+                    "A. 随手塞进口袋，回家交给家长",
+                    "B. 放钱包里，不知不觉就花了",
+                    "C. 整理好，攒起来或者存进银行",
+                    "D. 很少用现金，都是手机支付"
+                ],
+                correct: "C"
+            },
+            {
+                question: "18. 看到水龙头没关紧，你会？",
+                options: [
+                    "A. 假装没看见",
+                    "B. 喊别人来关",
+                    "C. 顺手拧紧",
+                    "D. 觉得漏一点点没关系"
+                ],
+                correct: "C"
+            },
+            {
+                question: "19. 周末在家，你通常什么时候吃午饭？",
+                options: [
+                    "A. 家人做好了喊才吃",
+                    "B. 饿了就随便找点零食吃",
+                    "C. 自己做点简单的，或者点外卖",
+                    "D. 睡到中午，起来直接吃晚饭"
+                ],
+                correct: "C"
+            },
+            {
+                question: "20. 收到别人送的礼物，你会？",
+                options: [
+                    "A. 直接拆开，觉得喜欢就留下",
+                    "B. 先谢谢对方，回家再拆",
+                    "C. 拆完后会想着回送一份礼物",
+                    "D. 不太在意，收了就放一边"
+                ],
+                correct: "C"
+            }
+        ];
+
+        // 动态生成题目
+        const form = document.getElementById('quizForm');
+        questions.forEach((q, index) => {
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'question';
+            
+            const questionText = document.createElement('p');
+            questionText.textContent = q.question;
+            questionDiv.appendChild(questionText);
+            
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'options';
+            
+            q.options.forEach(option => {
+                const optionDiv = document.createElement('div');
+                optionDiv.className = 'option';
+                
+                const input = document.createElement('input');
+                input.type = 'radio';
+                input.name = `q${index + 1}`;
+                input.value = option[0]; // 获取选项字母(A/B/C/D)
+                input.required = true;
+                
+                const label = document.createElement('label');
+                label.textContent = option;
+                label.prepend(input); // 把input放在label前面
+                
+                optionDiv.appendChild(label);
+                optionsDiv.appendChild(optionDiv);
+            });
+            
+            questionDiv.appendChild(optionsDiv);
+            form.appendChild(questionDiv);
+        });
+
+        // 检查答题限制
+        if (!checkQuizRestriction()) {
+            // 提交按钮事件
+            document.getElementById('submitBtn').addEventListener('click', () => {
+                let score = 0;
+                
+                // 验证是否所有题目都已作答
+                const allAnswered = questions.every((_, index) => {
+                    return document.querySelector(`input[name="q${index + 1}"]:checked`) !== null;
+                });
+                
+                if (!allAnswered) {
+                    alert('请完成所有题目后再提交！');
+                    return;
+                }
+                
+                // 计算分数
+                questions.forEach((q, index) => {
+                    const selected = document.querySelector(`input[name="q${index + 1}"]:checked`).value;
+                    score += selected === q.correct ? 5 : 1;
+                });
+                
+                // 记录答题时间和分数
+                localStorage.setItem('lastQuizTimestamp', new Date().getTime().toString());
+                localStorage.setItem('lastQuizScore', score.toString());
+                
+                // 显示结果
+                const resultDiv = document.getElementById('result');
+                resultDiv.style.display = 'block';
+                
+                // 更新上次分数显示
+                document.getElementById('lastScoreNotice').style.display = 'block';
+                document.getElementById('lastScoreNotice').textContent = `上次得分：${score}分`;
+                
+                // 判断结果
+                if (score >= 60) {
+                    resultDiv.className = 'adult';
+                    resultDiv.innerHTML = `你的得分是：${score}分<br>请将此分数截图提交给群主判断`;
+                } else {
+                    resultDiv.className = 'teen';
+                    resultDiv.innerHTML = `你的得分是：${score}分<br>请将此分数截图提交给群主判断`;
+                }
+
+                // 提交后禁用按钮
+                document.getElementById('submitBtn').disabled = true;
+            });
+        }
+    </script>
+</body>
+</html>
