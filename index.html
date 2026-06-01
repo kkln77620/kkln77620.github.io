@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高级精灵图智能切割工具 Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root { --primary: #007bff; --success: #28a745; --bg: #1a1a1a; --card: #2d2d2d; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #e0e0e0; margin: 0; padding: 20px; line-height: 1.6; }
+        
+        /* 响应式容器 */
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 30px; }
+        
+        /* 控制面板 */
+        .controls { 
+            background: var(--card); padding: 20px; border-radius: 12px; 
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+            gap: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 14px; color: #aaa; font-weight: bold; }
+        input, select { 
+            background: #3d3d3d; border: 1px solid #4d4d4d; color: #fff; 
+            padding: 10px; border-radius: 6px; outline: none;
+        }
+        input[type="range"] { padding: 0; }
+
+        /* 预览区 */
+        .preview-section { margin-top: 30px; text-align: center; overflow: auto; background: #000; border-radius: 8px; padding: 10px; }
+        canvas { max-width: 100%; border: 1px solid #444; }
+
+        /* 统计与操作 */
+        .stats-bar { 
+            margin-top: 30px; padding: 15px; background: var(--card); 
+            border-radius: 8px; display: flex; justify-content: space-between; 
+            align-items: center; border-left: 5px solid var(--primary);
+        }
+
+        /* 结果网格 */
+        .result-grid { 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); 
+            gap: 15px; margin-top: 20px; 
+        }
+        .sprite-card { 
+            background: var(--card); border-radius: 8px; overflow: hidden; 
+            border: 1px solid #444; transition: 0.2s; position: relative;
+            display: flex; flex-direction: column; align-items: center; padding: 10px;
+        }
+        .sprite-card:hover { border-color: var(--primary); transform: translateY(-5px); }
+        .sprite-index { position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+        .sprite-card img { max-width: 100px; max-height: 100px; object-fit: contain; margin-bottom: 10px; }
+        
+        /* 按钮样式 */
+        .btn { 
+            padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; 
+            font-weight: bold; transition: 0.2s; text-align: center; text-decoration: none; font-size: 14px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; width: 100%; margin-top: 10px; }
+        .btn-zip { background: #f39c12; color: white; padding: 12px 30px; font-size: 16px; }
+        .btn:disabled { background: #555; cursor: not-allowed; }
+
+        /* 底部浮动栏 */
+        .footer-actions { 
+            position: sticky; bottom: 20px; background: rgba(45, 45, 45, 0.9); 
+            padding: 15px 30px; border-radius: 50px; display: flex; 
+            justify-content: center; backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>精灵图智能切割工具 <span style="font-size: 0.5em; vertical-align: middle; color: var(--primary);">v2.0</span></h1>
+    </header>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>1. 上传精灵图 (PNG/JPG)</label>
+            <input type="file" id="upload" accept="image/*">
+        </div>
+        <div class="control-group">
+            <label>2. 切割模式</label>
+            <select id="mode">
+                <option value="smart">智能识别 (推荐)</option>
+                <option value="grid">网格平均分 (需输入行列)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>3. 自动合并间距: <span id="expandVal">3px</span></label>
+            <input type="range" id="expand" min="0" max="20" value="3">
+        </div>
+        <div class="control-group">
+            <label>4. 噪声过滤 (阈值)</label>
+            <input type="range" id="threshold" min="0" max="100" value="20">
+        </div>
+        <button class="btn btn-primary" onclick="startProcess()">开始解析图片</button>
+    </div>
+
+    <div class="preview-section" id="previewContainer" style="display:none;">
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <div class="stats-bar" id="statsBar" style="display:none;">
+        <div>检测状态: <strong id="statusText">等待操作</strong></div>
+        <div>碎片统计: <strong id="spriteCount" style="color: var(--primary); font-size: 20px;">0</strong> Pcs</div>
+    </div>
+
+    <div class="result-grid" id="results"></div>
+
+    <div class="footer-actions" id="footerActions" style="display:none;">
+        <button class="btn btn-zip" onclick="downloadZip()">一键打包下载全部 (ZIP)</button>
+    </div>
+</div>
+
+<script>
+    const expandInput = document.getElementById('expand');
+    const results = document.getElementById('results');
+    const statsBar = document.getElementById('statsBar');
+    const footerActions = document.getElementById('footerActions');
+    
+    expandInput.oninput = () => document.getElementById('expandVal').innerText = expandInput.value + 'px';
+
+    let spriteImages = []; // 存储所有的 blob 数据用于 ZIP
+
+    async function startProcess() {
+        const file = document.getElementById('upload').files[0];
+        if (!file) return alert('请先选择图片文件！');
+
+        const mode = document.getElementById('mode').value;
+        const img = await loadImage(file);
+        
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        document.getElementById('previewContainer').style.display = 'block';
+
+        const threshold = parseInt(document.getElementById('threshold').value);
+        const expand = parseInt(document.getElementById('expand').value);
+
+        let rects = [];
+        if (mode === 'grid') {
+            const rows = prompt("输入行数:", "4") || 1;
+            const cols = prompt("输入列数:", "4") || 1;
+            rects = gridSplit(img.width, img.height, rows, cols);
+        } else {
+            rects = smartSplit(img.width, img.height, threshold, expand);
+        }
+
+        renderSprites(img, rects);
+    }
+
+    function loadImage(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function smartSplit(w, h, threshold, expand) {
+        const ctx = document.getElementById('mainCanvas').getContext('2d');
+        const data = ctx.getImageData(0, 0, w, h).data;
+        const visited = new Uint8Array(w * h);
+        const rects = [];
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const idx = y * w + x;
+                if (!visited[idx] && isPixelActive(data, idx, threshold)) {
+                    const rect = floodFill(x, y, w, h, data, visited, threshold, expand);
+                    if (rect.w > 2 && rect.h > 2) rects.push(rect);
+                }
+            }
+        }
+        return rects;
+    }
+
+    function floodFill(startX, startY, w, h, data, visited, threshold, expand) {
+        let minX = startX, maxX = startX, minY = startY, maxY = startY;
+        const stack = [[startX, startY]];
+        visited[startY * w + startX] = 1;
+
+        while (stack.length > 0) {
+            const [cx, cy] = stack.pop();
+            minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
+            minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
+
+            for (let dy = -1 - expand; dy <= 1 + expand; dy++) {
+                for (let dx = -1 - expand; dx <= 1 + expand; dx++) {
+                    const nx = cx + dx, ny = cy + dy;
+                    if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                        const nIdx = ny * w + nx;
+                        if (!visited[nIdx] && isPixelActive(data, nIdx, threshold)) {
+                            visited[nIdx] = 1;
+                            stack.push([nx, ny]);
+                        }
+                    }
+                }
+            }
+        }
+        return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+    }
+
+    function isPixelActive(data, idx, t) {
+        const i = idx * 4;
+        return (data[i] > t || data[i+1] > t || data[i+2] > t) && data[i+3] > 10;
+    }
+
+    function gridSplit(w, h, rows, cols) {
+        const rects = [];
+        const rw = w / cols, rh = h / rows;
+        for(let r=0; r<rows; r++) {
+            for(let c=0; c<cols; c++) {
+                rects.push({ x: c*rw, y: r*rh, w: rw, h: rh });
+            }
+        }
+        return rects;
+    }
+
+    function renderSprites(img, rects) {
+        results.innerHTML = '';
+        spriteImages = [];
+        document.getElementById('spriteCount').innerText = rects.length;
+        statsBar.style.display = 'flex';
+        footerActions.style.display = rects.length > 0 ? 'flex' : 'none';
+
+        rects.forEach((r, i) => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = r.w; tempCanvas.height = r.h;
+            tempCanvas.getContext('2d').drawImage(img, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+            
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            spriteImages.push({ name: `sprite_${i+1}.png`, url: dataUrl });
+
+            const card = document.createElement('div');
+            card.className = 'sprite-card';
+            card.innerHTML = `
+                <div class="sprite-index">#${i+1}</div>
+                <img src="${dataUrl}">
+                <div style="font-size:11px; color:#888; margin-bottom:5px;">${Math.round(r.w)}x${Math.round(r.h)}</div>
+                <a href="${dataUrl}" download="sprite_${i+1}.png" class="btn btn-success">单张下载</a>
+            `;
+            results.appendChild(card);
+        });
+    }
+
+    async function downloadZip() {
+        const zip = new JSZip();
+        const status = document.getElementById('statusText');
+        status.innerText = "正在压缩...";
+        
+        spriteImages.forEach(item => {
+            const imgData = item.url.split(',')[1];
+            zip.file(item.name, imgData, {base64: true});
+        });
+
+        const content = await zip.generateAsync({type:"blob"});
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(content);
+        link.download = "sprites_pack.zip";
+        link.click();
+        status.innerText = "打包完成！";
+    }
+</script>
+
+</body>
+</html>
