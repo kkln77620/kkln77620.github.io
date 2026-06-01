@@ -2,190 +2,273 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>高级精灵图智能切割工具 Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>精灵图智能切割与微调中心 v2.4 修复版</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        :root { --primary: #007bff; --success: #28a745; --bg: #1a1a1a; --card: #2d2d2d; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: #e0e0e0; margin: 0; padding: 20px; line-height: 1.6; }
+        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #f39c12; --bg: #121212; --card: #222222; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: #e0e0e0; margin: 0; padding: 12px; box-sizing: border-box; }
         
-        /* 响应式容器 */
-        .container { max-width: 1200px; margin: 0 auto; }
-        header { text-align: center; margin-bottom: 30px; }
+        .container { max-width: 1400px; margin: 0 auto; padding-bottom: 90px; }
+        header h1 { text-align: center; font-size: 1.5rem; margin: 10px 0; color: #fff; }
         
-        /* 控制面板 */
+        /* 控制台 */
         .controls { 
-            background: var(--card); padding: 20px; border-radius: 12px; 
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-            gap: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            background: var(--card); padding: 15px; border-radius: 12px; 
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); border: 1px solid #333;
         }
-        .control-group { display: flex; flex-direction: column; gap: 8px; }
-        label { font-size: 14px; color: #aaa; font-weight: bold; }
-        input, select { 
-            background: #3d3d3d; border: 1px solid #4d4d4d; color: #fff; 
-            padding: 10px; border-radius: 6px; outline: none;
-        }
-        input[type="range"] { padding: 0; }
-
-        /* 预览区 */
-        .preview-section { margin-top: 30px; text-align: center; overflow: auto; background: #000; border-radius: 8px; padding: 10px; }
-        canvas { max-width: 100%; border: 1px solid #444; }
-
-        /* 统计与操作 */
-        .stats-bar { 
-            margin-top: 30px; padding: 15px; background: var(--card); 
-            border-radius: 8px; display: flex; justify-content: space-between; 
-            align-items: center; border-left: 5px solid var(--primary);
-        }
-
-        /* 结果网格 */
-        .result-grid { 
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); 
-            gap: 15px; margin-top: 20px; 
-        }
-        .sprite-card { 
-            background: var(--card); border-radius: 8px; overflow: hidden; 
-            border: 1px solid #444; transition: 0.2s; position: relative;
-            display: flex; flex-direction: column; align-items: center; padding: 10px;
-        }
-        .sprite-card:hover { border-color: var(--primary); transform: translateY(-5px); }
-        .sprite-index { position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-        .sprite-card img { max-width: 100px; max-height: 100px; object-fit: contain; margin-bottom: 10px; }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-size: 12px; color: #aaa; font-weight: bold; }
+        input, select, button { background: #333; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 6px; outline: none; font-size: 13px; }
         
-        /* 按钮样式 */
-        .btn { 
-            padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; 
-            font-weight: bold; transition: 0.2s; text-align: center; text-decoration: none; font-size: 14px;
-        }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-success { background: var(--success); color: white; width: 100%; margin-top: 10px; }
-        .btn-zip { background: #f39c12; color: white; padding: 12px 30px; font-size: 16px; }
-        .btn:disabled { background: #555; cursor: not-allowed; }
+        /* 模式状态控制器切换 */
+        .mode-selector { display: flex; background: #2b2b2b; border-radius: 8px; padding: 4px; margin: 12px 0; gap: 4px; }
+        .mode-btn { flex: 1; border: none; padding: 10px; border-radius: 6px; background: transparent; color: #aaa; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; }
+        .mode-btn.active[data-mode="view"] { background: var(--primary); color: white; }
+        .mode-btn.active[data-mode="edit"] { background: var(--warning); color: #000; }
 
-        /* 底部浮动栏 */
-        .footer-actions { 
-            position: sticky; bottom: 20px; background: rgba(45, 45, 45, 0.9); 
-            padding: 15px 30px; border-radius: 50px; display: flex; 
-            justify-content: center; backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        /* 高级编辑调校面板 */
+        .edit-tools-panel {
+            background: #2c2515; border: 1px solid var(--warning); border-radius: 8px; padding: 12px; margin: 10px 0;
+            display: none; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; animation: fadeIn 0.3s;
         }
+        .btn-tool { background: #3a311b; color: var(--warning); border: 1px solid var(--warning); font-weight: bold; cursor: pointer; padding: 10px; border-radius: 6px; font-size: 12px; }
+        .btn-tool:hover { background: var(--warning); color: #000; }
+
+        /* 工作区 */
+        .workspace { display: flex; flex-direction: column; gap: 15px; }
+        @media (min-width: 992px) { .workspace { display: grid; grid-template-columns: 1fr 380px; align-items: start; } }
+        
+        /* 画布展示区 */
+        .preview-section { background: #000; border-radius: 12px; padding: 10px; border: 1px solid #2a2a2a; width: 100%; box-sizing: border-box; }
+        .canvas-wrapper { position: relative; width: 100%; max-height: 65vh; overflow: auto; border: 2px dashed #333; border-radius: 8px; -webkit-overflow-scrolling: touch; }
+        
+        /* 几种经典预览底色 */
+        .bg-dark { background: #050505 !important; background-image: none !important; }
+        .bg-gray { background: #444444 !important; background-image: none !important; }
+        .bg-white { background: #ffffff !important; background-image: none !important; }
+        .bg-grid { background-image: repeating-conic-gradient(#2a2a2a 0% 25%, #1f1f1f 0% 50%) !important; background-size: 16px 16px !important; }
+
+        canvas { display: block; margin: 0 auto; image-rendering: pixelated; }
+
+        /* 右侧切片 */
+        .result-section { background: #181818; border-radius: 12px; padding: 12px; border: 1px solid #2a2a2a; box-sizing: border-box; }
+        .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; max-height: 50vh; overflow-y: auto; }
+        @media (min-width: 992px) { .result-grid { max-height: 75vh; } }
+        
+        .sprite-card { background: var(--card); border-radius: 6px; border: 1px solid #333; position: relative; display: flex; flex-direction: column; align-items: center; padding: 8px; cursor: pointer; }
+        .sprite-card.active-edit { border-color: var(--warning); background: #2a2415; }
+        .sprite-card.selected { border-color: var(--success); }
+        .select-checkbox { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; margin: 0; z-index: 5; }
+        .sprite-index { position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.7); padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        .sprite-card img { max-width: 70px; max-height: 70px; object-fit: contain; margin: 15px 0 6px 0; background-image: repeating-conic-gradient(#2a2a2a 0% 25%, #1f1f1f 0% 50%); background-size: 8px 8px; }
+        
+        .btn-primary { background: var(--primary); color: white; width: 100%; padding: 10px; font-size: 14px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; }
+        .btn-success { background: var(--success); color: white; width: 100%; padding: 4px; font-size: 11px; margin-top: auto; text-align: center; border-radius: 4px; border: none; cursor: pointer; }
+        
+        .batch-ops { display: flex; gap: 8px; margin: 10px 0; }
+        .batch-ops button { flex: 1; padding: 6px; font-size: 12px; background: #333; }
+
+        /* 固底栏 */
+        .footer-actions { 
+            position: fixed; bottom: 12px; left: 12px; right: 12px;
+            background: rgba(30, 30, 30, 0.95); padding: 10px 20px; border-radius: 40px; 
+            display: flex; justify-content: space-between; align-items: center; gap: 10px;
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5); z-index: 999; border: 1px solid #444;
+        }
+        .btn-zip { background: var(--warning); color: #000; padding: 10px 24px; font-size: 14px; border-radius: 30px; font-weight: bold; border: none; cursor: pointer; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
 <div class="container">
     <header>
-        <h1>精灵图智能切割工具 <span style="font-size: 0.5em; vertical-align: middle; color: var(--primary);">v2.0</span></h1>
+        <h1>精灵图智能切割与高精度编辑器 <span style="font-size: 0.5em; color: var(--warning);">v4.2</span></h1>
     </header>
 
     <div class="controls">
         <div class="control-group">
-            <label>1. 上传精灵图 (PNG/JPG)</label>
+            <label>1. 载入目标图集</label>
             <input type="file" id="upload" accept="image/*">
         </div>
         <div class="control-group">
-            <label>2. 切割模式</label>
+            <label>2. 识别算法模式</label>
             <select id="mode">
-                <option value="smart">智能识别 (推荐)</option>
-                <option value="grid">网格平均分 (需输入行列)</option>
+                <option value="smart">自动剔除纯黑底模式</option>
+                <option value="transparent">透明通道模式(PNG)</option>
             </select>
         </div>
         <div class="control-group">
-            <label>3. 自动合并间距: <span id="expandVal">3px</span></label>
-            <input type="range" id="expand" min="0" max="20" value="3">
+            <label>3. 自动合并间距: <span id="expandVal">4px</span></label>
+            <input type="range" id="expand" min="0" max="30" value="4">
         </div>
         <div class="control-group">
-            <label>4. 噪声过滤 (阈值)</label>
-            <input type="range" id="threshold" min="0" max="100" value="20">
+            <label>4. 切换画布显示背景</label>
+            <select id="canvasBgSelect" onchange="changeCanvasBackground(this.value)">
+                <option value="bg-dark">深黑背景 (默认)</option>
+                <option value="bg-grid">透明透明棋盘格</option>
+                <option value="bg-gray">极客中灰底</option>
+                <option value="bg-white">纯白背景</option>
+            </select>
         </div>
-        <button class="btn btn-primary" onclick="startProcess()">开始解析图片</button>
+        <button class="btn-primary" style="grid-column: 1 / -1;" onclick="executeAutoDetect()">一键智能识别区域</button>
     </div>
 
-    <div class="preview-section" id="previewContainer" style="display:none;">
-        <canvas id="mainCanvas"></canvas>
+    <div class="mode-selector">
+        <button class="mode-btn active" data-mode="view" onclick="switchAppMode('view')">📱 浏览模式 (画布区域可正常滑动页面)</button>
+        <button class="mode-btn" data-mode="edit" onclick="switchAppMode('edit')">📐 编辑模式 (调控框框大小位置)</button>
     </div>
 
-    <div class="stats-bar" id="statsBar" style="display:none;">
-        <div>检测状态: <strong id="statusText">等待操作</strong></div>
-        <div>碎片统计: <strong id="spriteCount" style="color: var(--primary); font-size: 20px;">0</strong> Pcs</div>
+    <div class="edit-tools-panel" id="editToolsPanel">
+        <button class="btn-tool" onclick="autoAlignSelectedCenter()">🎯 自动校准中心 (保持原大小对齐重心)</button>
+        <button class="btn-tool" onclick="autoFitSelectedSize()">📐 校准并自适应大小 (剔除边缘空白紧密包裹)</button>
+        <button class="btn-tool" style="border-color:var(--danger); color:var(--danger); background:#241414;" onclick="deleteSelectedRect()">🗑️ 删除此选区</button>
     </div>
 
-    <div class="result-grid" id="results"></div>
+    <div class="workspace">
+        <div class="preview-section">
+            <div class="canvas-wrapper bg-dark" id="canvasWrapper">
+                <canvas id="mainCanvas"></canvas>
+            </div>
+        </div>
 
-    <div class="footer-actions" id="footerActions" style="display:none;">
-        <button class="btn btn-zip" onclick="downloadZip()">一键打包下载全部 (ZIP)</button>
+        <div class="result-section">
+            <div class="stats-bar" style="font-size: 13px; margin-bottom: 5px; display:flex; justify-content:space-between; background:var(--card); padding:10px; border-radius:6px;">
+                <div>总计: <strong id="totalCount" style="color:var(--success)">0</strong> | 已选: <strong id="selectedCount" style="color:var(--warning)">0</strong></div>
+                <div id="hintText" style="color:#aaa; font-size:11px;">当前状态: 浏览页面中</div>
+            </div>
+            <div class="batch-ops" id="batchBar" style="display:none;">
+                <button onclick="toggleSelectAll(true)">全选</button>
+                <button onclick="toggleSelectAll(false)">全清</button>
+                <button onclick="inverseSelect()">反选</button>
+            </div>
+            <div class="result-grid" id="results"></div>
+        </div>
+    </div>
+
+    <div class="footer-actions" id="footerBar" style="display:none;">
+        <div style="font-size:12px;" id="statusText">请勾选所需切片</div>
+        <button class="btn-zip" id="zipBtn" onclick="packSelectedToZip()">打包选中项 (ZIP)</button>
     </div>
 </div>
 
 <script>
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
     const expandInput = document.getElementById('expand');
     const results = document.getElementById('results');
-    const statsBar = document.getElementById('statsBar');
-    const footerActions = document.getElementById('footerActions');
+    const editToolsPanel = document.getElementById('editToolsPanel');
+    const canvasWrapper = document.getElementById('canvasWrapper');
+
+    let globalImg = null;
+    let cuttingRects = [];  
+    let selectedIds = new Set(); 
+    let currentMode = 'view'; 
     
+    let activeRectId = null;  
+    let dragType = null;      
+    let isDragging = false;
+    let dragStartX, dragStartY;
+    let originalRectState = null;
+
+    const HANDLE_SIZE = 8;   
+    let dpr = 1;
+
     expandInput.oninput = () => document.getElementById('expandVal').innerText = expandInput.value + 'px';
 
-    let spriteImages = []; // 存储所有的 blob 数据用于 ZIP
+    // 切换预览区背景色函数
+    function changeCanvasBackground(className) {
+        canvasWrapper.className = "canvas-wrapper " + className;
+    }
 
-    async function startProcess() {
-        const file = document.getElementById('upload').files[0];
-        if (!file) return alert('请先选择图片文件！');
-
-        const mode = document.getElementById('mode').value;
-        const img = await loadImage(file);
+    function switchAppMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`.mode-btn[data-mode="${mode}"]`).classList.add('active');
         
-        const canvas = document.getElementById('mainCanvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        document.getElementById('previewContainer').style.display = 'block';
-
-        const threshold = parseInt(document.getElementById('threshold').value);
-        const expand = parseInt(document.getElementById('expand').value);
-
-        let rects = [];
-        if (mode === 'grid') {
-            const rows = prompt("输入行数:", "4") || 1;
-            const cols = prompt("输入列数:", "4") || 1;
-            rects = gridSplit(img.width, img.height, rows, cols);
+        const hint = document.getElementById('hintText');
+        if(mode === 'view') {
+            hint.innerText = "当前状态: 浏览中，可以滑动网页。";
+            activeRectId = null; 
+            editToolsPanel.style.display = 'none';
         } else {
-            rects = smartSplit(img.width, img.height, threshold, expand);
+            hint.innerText = "📐编辑中: 点击具体红框即可激活校准。";
         }
-
-        renderSprites(img, rects);
+        redrawCanvas();
+        renderSpriteCards();
     }
 
-    function loadImage(file) {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => resolve(img);
-                img.src = e.target.result;
+    document.getElementById('upload').onchange = function(e) {
+        if(!e.target.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            globalImg = new Image();
+            globalImg.onload = () => {
+                switchAppMode('view');
+                executeAutoDetect();
             };
-            reader.readAsDataURL(file);
-        });
-    }
+            globalImg.src = event.target.result;
+        };
+        reader.readAsDataURL(e.target.files[0]);
+    };
 
-    function smartSplit(w, h, threshold, expand) {
-        const ctx = document.getElementById('mainCanvas').getContext('2d');
-        const data = ctx.getImageData(0, 0, w, h).data;
-        const visited = new Uint8Array(w * h);
-        const rects = [];
+    function executeAutoDetect() {
+        if (!globalImg) return;
+        const mode = document.getElementById('mode').value;
+        const expand = parseInt(expandInput.value);
 
-        for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-                const idx = y * w + x;
-                if (!visited[idx] && isPixelActive(data, idx, threshold)) {
-                    const rect = floodFill(x, y, w, h, data, visited, threshold, expand);
-                    if (rect.w > 2 && rect.h > 2) rects.push(rect);
+        dpr = window.devicePixelRatio || 1;
+        canvas.width = globalImg.width * dpr;
+        canvas.height = globalImg.height * dpr;
+        canvas.style.width = globalImg.width + 'px';
+        canvas.style.height = globalImg.height + 'px';
+        ctx.scale(dpr, dpr);
+
+        const calcCanvas = document.createElement('canvas');
+        calcCanvas.width = globalImg.width;
+        calcCanvas.height = globalImg.height;
+        const calcCtx = calcCanvas.getContext('2d');
+        calcCtx.drawImage(globalImg, 0, 0);
+        const data = calcCtx.getImageData(0, 0, calcCanvas.width, calcCanvas.height).data;
+
+        const visited = new Uint8Array(globalImg.width * globalImg.height);
+        cuttingRects = [];
+        let id = 1;
+
+        for (let y = 0; y < globalImg.height; y++) {
+            for (let x = 0; x < globalImg.width; x++) {
+                const idx = y * globalImg.width + x;
+                let isActive = false;
+                
+                if (mode === 'transparent') {
+                    isActive = data[idx * 4 + 3] > 15;
+                } else {
+                    const r = data[idx * 4], g = data[idx * 4 + 1], b = data[idx * 4 + 2], a = data[idx * 4 + 3];
+                    isActive = (a > 15) && !(r < 25 && g < 25 && b < 25);
+                }
+
+                if (!visited[idx] && isActive) {
+                    const rect = runFloodFill(x, y, globalImg.width, globalImg.height, data, visited, mode, expand);
+                    if (rect.w > 4 && rect.h > 4 && rect.w < globalImg.width - 5) {
+                        rect.id = id++;
+                        cuttingRects.push(rect);
+                    }
                 }
             }
         }
-        return rects;
+
+        selectedIds = new Set(cuttingRects.map(r => r.id));
+        activeRectId = null;
+        editToolsPanel.style.display = 'none';
+        redrawCanvas();
+        renderSpriteCards();
     }
 
-    function floodFill(startX, startY, w, h, data, visited, threshold, expand) {
+    function runFloodFill(startX, startY, w, h, data, visited, mode, expand) {
         let minX = startX, maxX = startX, minY = startY, maxY = startY;
         const stack = [[startX, startY]];
         visited[startY * w + startX] = 1;
@@ -200,9 +283,18 @@
                     const nx = cx + dx, ny = cy + dy;
                     if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
                         const nIdx = ny * w + nx;
-                        if (!visited[nIdx] && isPixelActive(data, nIdx, threshold)) {
-                            visited[nIdx] = 1;
-                            stack.push([nx, ny]);
+                        if (!visited[nIdx]) {
+                            let match = false;
+                            if (mode === 'transparent') {
+                                match = data[nIdx * 4 + 3] > 15;
+                            } else {
+                                const r = data[nIdx * 4], g = data[nIdx * 4 + 1], b = data[nIdx * 4 + 2], a = data[nIdx * 4 + 3];
+                                match = (a > 15) && !(r < 25 && g < 25 && b < 25);
+                            }
+                            if (match) {
+                                visited[nIdx] = 1;
+                                stack.push([nx, ny]);
+                            }
                         }
                     }
                 }
@@ -211,65 +303,376 @@
         return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
     }
 
-    function isPixelActive(data, idx, t) {
-        const i = idx * 4;
-        return (data[i] > t || data[i+1] > t || data[i+2] > t) && data[i+3] > 10;
-    }
+    function redrawCanvas() {
+        if (!globalImg) return;
+        ctx.clearRect(0, 0, globalImg.width, globalImg.height);
+        ctx.drawImage(globalImg, 0, 0, globalImg.width, globalImg.height);
 
-    function gridSplit(w, h, rows, cols) {
-        const rects = [];
-        const rw = w / cols, rh = h / rows;
-        for(let r=0; r<rows; r++) {
-            for(let c=0; c<cols; c++) {
-                rects.push({ x: c*rw, y: r*rh, w: rw, h: rh });
+        cuttingRects.forEach(r => {
+            const isActiveEdit = (r.id === activeRectId);
+            
+            if (activeRectId !== null && !isActiveEdit) {
+                ctx.globalAlpha = 0.15;
+            } else {
+                ctx.globalAlpha = 1.0;
             }
-        }
-        return rects;
+
+            const isSel = selectedIds.has(r.id);
+            ctx.lineWidth = isActiveEdit ? 2.5 : (isSel ? 1.5 : 1);
+            ctx.strokeStyle = isActiveEdit ? '#f39c12' : (isSel ? '#28a745' : '#dc3545');
+            ctx.strokeRect(r.x, r.y, r.w, r.h);
+
+            ctx.fillStyle = isActiveEdit ? '#f39c12' : (isSel ? '#28a745' : '#dc3545');
+            ctx.font = 'bold 11px monospace';
+            ctx.fillText(`#${r.id}`, r.x + 3, r.y + 12);
+
+            if (isActiveEdit) {
+                ctx.globalAlpha = 1.0;
+                const handles = getHandleCoords(r);
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#f39c12';
+                ctx.lineWidth = 1.5;
+                handles.forEach(h => {
+                    ctx.fillRect(h.x - HANDLE_SIZE/2, h.y - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+                    ctx.strokeRect(h.x - HANDLE_SIZE/2, h.y - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+                });
+            }
+        });
+        ctx.globalAlpha = 1.0; 
     }
 
-    function renderSprites(img, rects) {
-        results.innerHTML = '';
-        spriteImages = [];
-        document.getElementById('spriteCount').innerText = rects.length;
-        statsBar.style.display = 'flex';
-        footerActions.style.display = rects.length > 0 ? 'flex' : 'none';
+    function getHandleCoords(r) {
+        return [
+            { x: r.x, y: r.y },          
+            { x: r.x + r.w/2, y: r.y },  
+            { x: r.x + r.w, y: r.y },    
+            { x: r.x + r.w, y: r.y + r.h/2 }, 
+            { x: r.x + r.w, y: r.y + r.h },   
+            { x: r.x + r.w/2, y: r.y + r.h }, 
+            { x: r.x, y: r.y + r.h },         
+            { x: r.x, y: r.y + r.h/2 }        
+        ];
+    }
 
-        rects.forEach((r, i) => {
+    function renderSpriteCards() {
+        results.innerHTML = '';
+        document.getElementById('totalCount').innerText = cuttingRects.length;
+        document.getElementById('selectedCount').innerText = selectedIds.size;
+        
+        const isShow = cuttingRects.length > 0;
+        document.getElementById('batchBar').style.display = isShow ? 'flex' : 'none';
+        document.getElementById('footerBar').style.display = isShow ? 'flex' : 'none';
+
+        cuttingRects.forEach(r => {
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = r.w; tempCanvas.height = r.h;
-            tempCanvas.getContext('2d').drawImage(img, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+            tempCanvas.getContext('2d').drawImage(globalImg, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
             
             const dataUrl = tempCanvas.toDataURL('image/png');
-            spriteImages.push({ name: `sprite_${i+1}.png`, url: dataUrl });
+            const isSelected = selectedIds.has(r.id);
+            const isActiveEdit = (r.id === activeRectId);
 
             const card = document.createElement('div');
-            card.className = 'sprite-card';
+            card.className = `sprite-card ${isSelected ? 'selected' : ''} ${isActiveEdit ? 'active-edit' : ''}`;
+            card.setAttribute('data-id', r.id);
             card.innerHTML = `
-                <div class="sprite-index">#${i+1}</div>
+                <input type="checkbox" class="select-checkbox" ${isSelected ? 'checked' : ''}>
+                <div class="sprite-index" style="background:${isActiveEdit?'#f39c12':''}">${isActiveEdit?'微调中':'#'+r.id}</div>
                 <img src="${dataUrl}">
-                <div style="font-size:11px; color:#888; margin-bottom:5px;">${Math.round(r.w)}x${Math.round(r.h)}</div>
-                <a href="${dataUrl}" download="sprite_${i+1}.png" class="btn btn-success">单张下载</a>
+                <div style="font-size:10px; color:#888; margin-bottom:4px;">${r.w}×${r.h}</div>
+                <button class="btn-success" onclick="event.stopPropagation(); downloadSingleCard(${r.id})">下载</button>
             `;
+
+            card.onclick = () => {
+                if(currentMode === 'edit') {
+                    activeRectId = r.id;
+                    editToolsPanel.style.display = 'grid';
+                    redrawCanvas();
+                    renderSpriteCards();
+                } else {
+                    toggleCardSelect(r.id);
+                }
+            };
+            card.querySelector('.select-checkbox').onclick = (e) => { e.stopPropagation(); toggleCardSelect(r.id); };
+
             results.appendChild(card);
         });
     }
 
-    async function downloadZip() {
+    function downloadSingleCard(id) {
+        const r = cuttingRects.find(rect => rect.id === id);
+        if(!r) return;
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = r.w; tempCanvas.height = r.h;
+        tempCanvas.getContext('2d').drawImage(globalImg, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+        const link = document.createElement('a');
+        link.href = tempCanvas.toDataURL('image/png');
+        link.download = `sprite_${id}.png`;
+        link.click();
+    }
+
+    function toggleCardSelect(id) {
+        if(selectedIds.has(id)) { selectedIds.delete(id); } else { selectedIds.add(id); }
+        document.getElementById('selectedCount').innerText = selectedIds.size;
+        const card = document.querySelector(`.sprite-card[data-id="${id}"]`);
+        if(card) {
+            card.classList.toggle('selected');
+            card.querySelector('.select-checkbox').checked = selectedIds.has(id);
+        }
+        redrawCanvas();
+    }
+
+    function getCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: (clientX - rect.left) * (globalImg.width / rect.width),
+            y: (clientY - rect.top) * (globalImg.height / rect.height)
+        };
+    }
+
+    // ========================================================
+    // 🧠 核心算法引擎（重构：严格隔离全局坐标，杜绝膨胀）
+    // ========================================================
+    
+    function getRectPixelStats(r) {
+        const calcCanvas = document.createElement('canvas');
+        calcCanvas.width = globalImg.width; calcCanvas.height = globalImg.height;
+        const calcCtx = calcCanvas.getContext('2d');
+        calcCtx.drawImage(globalImg, 0, 0);
+        
+        // 提取当前的物理范围边界，严格锁定在 Canvas 全局图层内
+        const scanX = Math.max(0, Math.round(r.x));
+        const scanY = Math.max(0, Math.round(r.y));
+        const scanW = Math.min(globalImg.width - scanX, Math.round(r.w));
+        const scanH = Math.min(globalImg.height - scanY, Math.round(r.h));
+        
+        if (scanW <= 0 || scanH <= 0) return { count: 0 };
+
+        const imgData = calcCtx.getImageData(scanX, scanY, scanW, scanH).data;
+        const mode = document.getElementById('mode').value;
+
+        let sumX = 0, sumY = 0, count = 0;
+        // 局部相对坐标边界初始化
+        let localMinX = scanW, localMaxX = 0, localMinY = scanH, localMaxY = 0;
+
+        for (let y = 0; y < scanH; y++) {
+            for (let x = 0; x < scanW; x++) {
+                const pixelIdx = (y * scanW + x) * 4;
+                const pr = imgData[pixelIdx];
+                const pg = imgData[pixelIdx+1];
+                const pb = imgData[pixelIdx+2];
+                const pa = imgData[pixelIdx+3];
+
+                let isTarget = false;
+                if(mode === 'transparent') {
+                    isTarget = pa > 25;
+                } else {
+                    isTarget = (pa > 25) && !(pr < 30 && pg < 30 && pb < 30);
+                }
+
+                if (isTarget) {
+                    sumX += (scanX + x);
+                    sumY += (scanY + y);
+                    count++;
+
+                    if (x < localMinX) localMinX = x;
+                    if (x > localMaxX) localMaxX = x;
+                    if (y < localMinY) localMinY = y;
+                    if (y > localMaxY) localMaxY = y;
+                }
+            }
+        }
+
+        return { 
+            count, 
+            globalAvgX: sumX / count, 
+            globalAvgY: sumY / count,
+            // 绝对转换回 Canvas 全局独立坐标，防止边界无限向外溢出变大
+            globalMinX: scanX + localMinX,
+            globalMaxX: scanX + localMaxX,
+            globalMinY: scanY + localMinY,
+            globalMaxY: scanY + localMaxY
+        };
+    }
+
+    // 🎯 自动校准中心（严格不改变大小）
+    function autoAlignSelectedCenter() {
+        if (activeRectId === null) return;
+        const r = cuttingRects.find(rect => rect.id === activeRectId);
+        if (!r) return;
+
+        const stats = getRectPixelStats(r);
+        if (stats.count > 0) {
+            // 只动位置，不动宽高
+            r.x = Math.round(stats.globalAvgX - r.w / 2);
+            r.y = Math.round(stats.globalAvgY - r.h / 2);
+            
+            r.x = Math.max(0, Math.min(globalImg.width - r.w, r.x));
+            r.y = Math.max(0, Math.min(globalImg.height - r.h, r.y));
+
+            redrawCanvas();
+            renderSpriteCards();
+        } else {
+            alert('当前区域内没有探测到有效图案像素。');
+        }
+    }
+
+    // 📐 校准并自适应大小（向内收缩精准包裹）
+    function autoFitSelectedSize() {
+        if (activeRectId === null) return;
+        const r = cuttingRects.find(rect => rect.id === activeRectId);
+        if (!r) return;
+
+        const stats = getRectPixelStats(r);
+        if (stats.count > 0) {
+            // 向内自适应完美收紧，外加 1 像素防止切到边缘
+            r.x = Math.max(0, stats.globalMinX - 1);
+            r.y = Math.max(0, stats.globalMinY - 1);
+            r.w = (stats.globalMaxX - stats.globalMinX) + 2;
+            r.h = (stats.globalMaxY - stats.globalMinY) + 2;
+
+            redrawCanvas();
+            renderSpriteCards();
+        } else {
+            alert('选区中未识别到道具像素。');
+        }
+    }
+
+    function deleteSelectedRect() {
+        if (activeRectId === null) return;
+        cuttingRects = cuttingRects.filter(r => r.id !== activeRectId);
+        selectedIds.delete(activeRectId);
+        activeRectId = null;
+        editToolsPanel.style.display = 'none';
+        redrawCanvas();
+        renderSpriteCards();
+    }
+
+    // ========================================================
+    // 手势拦截引擎
+    // ========================================================
+    
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    canvas.addEventListener('mouseup', handleEnd);
+    canvas.addEventListener('touchstart', handleStart, { passive: false });
+    canvas.addEventListener('touchmove', handleMove, { passive: false });
+    canvas.addEventListener('touchend', handleEnd);
+
+    function handleStart(e) {
+        if (!globalImg || currentMode !== 'edit') return; 
+        
+        const coords = getCanvasCoords(e);
+        const mx = coords.x;
+        const my = coords.y;
+
+        if (activeRectId !== null) {
+            const activeRect = cuttingRects.find(r => r.id === activeRectId);
+            if (activeRect) {
+                const handles = getHandleCoords(activeRect);
+                for (let i = 0; i < handles.length; i++) {
+                    if (Math.abs(mx - handles[i].x) < HANDLE_SIZE * 1.5 && Math.abs(my - handles[i].y) < HANDLE_SIZE * 1.5) {
+                        isDragging = true;
+                        dragType = i; 
+                        dragStartX = mx; dragStartY = my;
+                        originalRectState = { ...activeRect };
+                        e.preventDefault(); 
+                        return;
+                    }
+                }
+            }
+        }
+
+        let hitId = null;
+        for (let i = cuttingRects.length - 1; i >= 0; i--) {
+            const r = cuttingRects[i];
+            if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) { hitId = r.id; break; }
+        }
+
+        if (hitId !== null) {
+            activeRectId = hitId;
+            const targetRect = cuttingRects.find(r => r.id === activeRectId);
+            isDragging = true;
+            dragType = 'move';
+            dragStartX = mx; dragStartY = my;
+            originalRectState = { ...targetRect };
+            
+            editToolsPanel.style.display = 'grid'; 
+            redrawCanvas();
+            renderSpriteCards();
+            e.preventDefault(); 
+        } else {
+            activeRectId = null;
+            editToolsPanel.style.display = 'none';
+            redrawCanvas();
+            renderSpriteCards();
+        }
+    }
+
+    function handleMove(e) {
+        if (!isDragging || currentMode !== 'edit' || activeRectId === null) return;
+        
+        e.preventDefault(); 
+        const coords = getCanvasCoords(e);
+        const dx = Math.round(coords.x - dragStartX);
+        const dy = Math.round(coords.y - dragStartY);
+
+        const targetRect = cuttingRects.find(r => r.id === activeRectId);
+        if (!targetRect || !originalRectState) return;
+
+        if (dragType === 'move') {
+            targetRect.x = originalRectState.x + dx;
+            targetRect.y = originalRectState.y + dy;
+        } else {
+            const s = originalRectState;
+            switch (dragType) {
+                case 0: targetRect.x = s.x + dx; targetRect.w = s.w - dx; targetRect.y = s.y + dy; targetRect.h = s.h - dy; break;
+                case 1: targetRect.y = s.y + dy; targetRect.h = s.h - dy; break;
+                case 2: targetRect.w = s.w + dx; targetRect.y = s.y + dy; targetRect.h = s.h - dy; break;
+                case 3: targetRect.w = s.w + dx; break;
+                case 4: targetRect.w = s.w + dx; targetRect.h = s.h + dy; break;
+                case 5: targetRect.h = s.h + dy; break;
+                case 6: targetRect.x = s.x + dx; targetRect.w = s.w - dx; targetRect.h = s.h + dy; break;
+                case 7: targetRect.x = s.x + dx; targetRect.w = s.w - dx; break;
+            }
+            if (targetRect.w < 4) { targetRect.w = 4; if(dragType===0||dragType===6||dragType===7) targetRect.x = s.x + s.w - 4; }
+            if (targetRect.h < 4) { targetRect.h = 4; if(dragType===0||dragType===1||dragType===2) targetRect.y = s.y + s.h - 4; }
+        }
+        redrawCanvas();
+    }
+
+    function handleEnd() {
+        if (!isDragging) return;
+        isDragging = false; dragType = null; originalRectState = null;
+        renderSpriteCards();
+    }
+
+    function toggleSelectAll(s) { selectedIds = s ? new Set(cuttingRects.map(r => r.id)) : new Set(); renderSpriteCards(); redrawCanvas(); }
+    function inverseSelect() { const next = new Set(); cuttingRects.forEach(r => { if(!selectedIds.has(r.id)) next.add(r.id); }); selectedIds = next; renderSpriteCards(); redrawCanvas(); }
+
+    async function packSelectedToZip() {
+        if(selectedIds.size === 0) return alert('未选中任何切片卡片！');
         const zip = new JSZip();
         const status = document.getElementById('statusText');
-        status.innerText = "正在压缩...";
+        status.innerText = "压缩中...";
         
-        spriteImages.forEach(item => {
-            const imgData = item.url.split(',')[1];
-            zip.file(item.name, imgData, {base64: true});
+        const targets = cuttingRects.filter(r => selectedIds.has(r.id));
+        targets.forEach((r) => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = r.w; tempCanvas.height = r.h;
+            tempCanvas.getContext('2d').drawImage(globalImg, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
+            const base64Data = tempCanvas.toDataURL('image/png').split(',')[1];
+            zip.file(`sprite_${r.id}.png`, base64Data, {base64: true});
         });
 
         const content = await zip.generateAsync({type:"blob"});
         const link = document.createElement('a');
         link.href = URL.createObjectURL(content);
-        link.download = "sprites_pack.zip";
+        link.download = `sprites_pack_${selectedIds.size}.zip`;
         link.click();
-        status.innerText = "打包完成！";
+        status.innerText = "导出成功！";
     }
 </script>
 
